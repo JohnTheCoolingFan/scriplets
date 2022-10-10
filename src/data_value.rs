@@ -27,6 +27,18 @@ pub enum DataValueHashEq {
     Sequence(Vec<DataValueHashEq>),
 }
 
+impl Default for DataValue {
+    fn default() -> Self {
+        Self::Nil
+    }
+}
+
+impl Default for DataValueHashEq {
+    fn default() -> Self {
+        Self::Nil
+    }
+}
+
 impl From<DataValueHashEq> for DataValue {
     fn from(data: DataValueHashEq) -> Self {
         match data {
