@@ -93,8 +93,8 @@ impl AssetLoader for PrototypesLoader {
         load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
-            let hash = blake3::hash(&bytes);
-            let mut prototypes: Prototypes = serde_json::from_slice(&bytes).unwrap();
+            let hash = blake3::hash(bytes);
+            let mut prototypes: Prototypes = serde_json::from_slice(bytes).unwrap();
             prototypes.hash = Some(hash);
 
             load_context.set_default_asset(LoadedAsset::new(prototypes));

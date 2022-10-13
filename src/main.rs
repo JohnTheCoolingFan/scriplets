@@ -111,7 +111,7 @@ fn spawn_unit(
     "#
         .as_bytes(),
     );
-    let movement = Movement::component_from_pt(&component_prototypes, "default").unwrap();
+    let movement = Movement::component_from_pt(component_prototypes, "default").unwrap();
     commands
         .spawn()
         .insert(Unit)
