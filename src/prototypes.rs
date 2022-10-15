@@ -23,8 +23,6 @@ pub trait ComponentPrototype<'de, T: Component = Self>: Prototype<'de> {
     }
 }
 
-// TODO: reimplement acceleration movement type to support steering around a point
-//  Or make a new movement type which works as stated above
 #[derive(Component, Prototype, ComponentPrototype, Deserialize, Clone)]
 #[prot_category(movement)]
 pub struct Movement {
