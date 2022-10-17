@@ -1,3 +1,7 @@
+use std::f32::consts::PI;
+use scriplets::*;
+use scriplets::program::*;
+use scriplets::prototypes::{ComponentPrototype, Movement, MovementType, Prototypes, PrototypesLoader};
 use bevy::{
     asset::LoadState,
     input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
@@ -7,54 +11,12 @@ use bevy::{
     window::PresentMode,
 };
 use bevy_rapier2d::prelude::*;
-use prototypes::{ComponentPrototype, Movement, MovementType, Prototypes, PrototypesLoader};
-
-use std::f32::consts::PI;
-
-mod data_value;
-mod program;
-mod prototypes;
-
-use program::{UnitHandle, UnitProgram};
 
 const CLEAR_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const RESOLUTION: f32 = 16.0 / 9.0;
 
-// General TODO list
-// - split into client and server
-// - code editing gui
-
-// General ideas
-//  Black box: a component that can store data when unit is running and extracted from a unit
-//  corpse as an item and be read by other units.
-//
-//  Items
-//  Units with manipulators specify an area that they want to pick up from. They are given a list
-//  of what can be picked up and then they choose what is picked up
-//
-//  Items with data
-//  Similar to black box, can have data written and read. Can be encrypted. No actual encryption
-//  will be done, just comparing the keys.
-//
-//  Possible new language: wasm
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum AppState {
-    Loading,
-    Playing,
-}
-
-#[derive(Component)]
-pub struct Unit;
-
-#[derive(Component)]
-pub struct UnitClock(Stopwatch);
-
-pub struct GameClock(Stopwatch);
-
-pub struct UnitSprite(Handle<Image>);
-pub struct WallSprite(Handle<Image>);
-pub struct PrototypesHandle(Handle<Prototypes>);
+pub struct UnitSprite(pub Handle<Image>);
+pub struct WallSprite(pub Handle<Image>);
 
 fn spawn_camera(mut commands: Commands) {
     let mut camera = Camera2dBundle::default();
