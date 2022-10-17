@@ -1,12 +1,7 @@
 use bevy::{
-    asset::LoadState,
-    input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
     prelude::*,
-    render::camera::ScalingMode,
     time::Stopwatch,
-    window::PresentMode,
 };
-use bevy_rapier2d::prelude::*;
 use prototypes::{Movement, Prototypes};
 
 pub mod data_value;
