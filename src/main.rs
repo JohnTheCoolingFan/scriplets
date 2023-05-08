@@ -359,7 +359,7 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(RapierDebugRenderPlugin::default()) // Reminder: disable when building debug
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
