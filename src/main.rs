@@ -359,6 +359,7 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
@@ -380,9 +381,6 @@ fn main() {
                 .with_system(move_and_zoom_camera),
         )
         .add_system_to_stage(CoreStage::First, tick_units_clocks)
-        .add_system_to_stage(CoreStage::PreUpdate, unit_tick);
-
-    #[cfg(feature = "debug")]
-    app.add_plugin(RapierDebugRenderPlugin::default());
-    app.run()
+        .add_system_to_stage(CoreStage::PreUpdate, unit_tick)
+        .run()
 }
