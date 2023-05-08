@@ -52,7 +52,7 @@ pub struct Unit;
 #[derive(Component)]
 pub struct UnitClock(Stopwatch);
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct GameClock(Stopwatch);
 
 #[derive(Resource)]
@@ -375,17 +375,17 @@ fn main() {
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
         .add_state::<AppState>()
-        .insert_resource(GameClock(Stopwatch::default()))
+        .init_resource::<GameClock>()
         .add_system(load_assets.in_schedule(OnEnter(AppState::Loading)))
         .add_system(check_load_assets.in_set(OnUpdate(AppState::Loading)))
         .add_system(spawn_walls.in_schedule(OnEnter(AppState::Playing)))
         .add_system(spawn_unit.in_schedule(OnEnter(AppState::Playing)))
         .add_system(spawn_camera.in_schedule(OnEnter(AppState::Playing)))
+        .add_system(tick_units_clocks.before(unit_tick))
+        .add_system(unit_tick.before(CoreSet::Update))
         .add_system(print_units_positions.in_set(OnUpdate(AppState::Playing)))
         .add_system(game_clock_tick.in_set(OnUpdate(AppState::Playing)))
         .add_system(handle_movement.in_set(OnUpdate(AppState::Playing)))
         .add_system(move_and_zoom_camera.in_set(OnUpdate(AppState::Playing)))
-        .add_system(tick_units_clocks.in_base_set(CoreSet::First))
-        .add_system(unit_tick.in_base_set(CoreSet::PreUpdate))
         .run()
 }
