@@ -13,7 +13,7 @@ use strum::AsRefStr;
 
 pub trait Prototype<'de>: Deserialize<'de> {
     fn name(&self) -> &str;
-    fn from_pt<'a, 'b>(prototypes_table: &'a Prototypes, name: &'b str) -> Option<&'a Self>;
+    fn from_pt<'a>(prototypes_table: &'a Prototypes, name: &str) -> Option<&'a Self>;
 }
 
 pub trait ComponentPrototype<'de, T: Component = Self>: Prototype<'de> {
