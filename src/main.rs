@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
     render::camera::ScalingMode,
     time::Stopwatch,
-    window::PresentMode,
+    window::{PresentMode, WindowResolution},
 };
 use bevy_rapier2d::prelude::*;
 use prototypes::{ComponentPrototype, Movement, MovementType, Prototypes, PrototypesLoader};
@@ -18,7 +18,8 @@ mod prototypes;
 use program::{UnitHandle, UnitProgram};
 
 const CLEAR_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
-const RESOLUTION: f32 = 16.0 / 9.0;
+const ASPECT_RATIO: f32 = 16.0 / 9.0;
+const WINDOW_HEIGHT: f32 = 900.0;
 
 // General TODO list
 // - split into client and server
@@ -38,8 +39,9 @@ const RESOLUTION: f32 = 16.0 / 9.0;
 //
 //  Possible new language: wasm
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, States, Default)]
 enum AppState {
+    #[default]
     Loading,
     Playing,
 }
@@ -50,23 +52,32 @@ pub struct Unit;
 #[derive(Component)]
 pub struct UnitClock(Stopwatch);
 
+#[derive(Resource)]
 pub struct GameClock(Stopwatch);
 
+#[derive(Resource)]
 pub struct UnitSprite(Handle<Image>);
+#[derive(Resource)]
 pub struct WallSprite(Handle<Image>);
+#[derive(Resource)]
 pub struct PrototypesHandle(Handle<Prototypes>);
 
 fn spawn_camera(mut commands: Commands) {
     let mut camera = Camera2dBundle::default();
 
+    /*
     camera.projection.top = 1.0;
     camera.projection.bottom = -1.0;
-    camera.projection.right = 1.0 * RESOLUTION;
-    camera.projection.left = -1.0 * RESOLUTION;
+    camera.projection.right = 1.0 * ASPECT_RATIO;
+    camera.projection.left = -1.0 * ASPECT_RATIO;
+    */
 
-    camera.projection.scaling_mode = ScalingMode::None;
+    camera.projection.scaling_mode = ScalingMode::Fixed {
+        height: 2.0,
+        width: 2.0 * ASPECT_RATIO,
+    };
 
-    commands.spawn_bundle(camera);
+    commands.spawn(camera);
 }
 
 fn move_and_zoom_camera(
@@ -112,22 +123,22 @@ fn spawn_unit(
         .as_bytes(),
     );
     let movement = Movement::component_from_pt(component_prototypes, "default").unwrap();
-    commands
-        .spawn()
-        .insert(Unit)
-        .insert(UnitClock(Stopwatch::default()))
-        .insert(movement)
-        .insert(unit_program)
-        .insert(Collider::cuboid(0.499, 0.499))
-        .insert(RigidBody::KinematicPositionBased)
-        .insert_bundle(SpriteBundle {
+    commands.spawn((
+        Unit,
+        UnitClock(Stopwatch::default()),
+        movement,
+        unit_program,
+        Collider::cuboid(0.499, 0.499),
+        RigidBody::KinematicPositionBased,
+        SpriteBundle {
             texture: unit_sprite.0.clone(),
             sprite: Sprite {
                 custom_size: Some(Vec2::splat(1.0)),
                 ..default()
             },
             ..default()
-        });
+        },
+    ));
 }
 
 fn spawn_walls(mut commands: Commands, wall_sprite: Res<WallSprite>) {
@@ -142,11 +153,10 @@ fn spawn_walls(mut commands: Commands, wall_sprite: Res<WallSprite>) {
 
 fn spawn_wall(commands: &mut Commands, x: f32, y: f32, sprite: &Handle<Image>) {
     let transform = TransformBundle::from(Transform::from_xyz(x, y, 0.0));
-    commands
-        .spawn()
-        .insert(Collider::cuboid(0.5, 0.5))
-        .insert(RigidBody::Fixed)
-        .insert_bundle(SpriteBundle {
+    commands.spawn((
+        Collider::cuboid(0.5, 0.5),
+        RigidBody::Fixed,
+        SpriteBundle {
             texture: sprite.clone(),
             transform: transform.local,
             global_transform: transform.global,
@@ -155,7 +165,8 @@ fn spawn_wall(commands: &mut Commands, x: f32, y: f32, sprite: &Handle<Image>) {
                 ..default()
             },
             ..default()
-        });
+        },
+    ));
 }
 
 fn handle_movement(
@@ -333,54 +344,48 @@ fn load_assets(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn check_load_assets(
-    mut state: ResMut<State<AppState>>,
+    mut next_state: ResMut<NextState<AppState>>,
     unit: Res<UnitSprite>,
     wall: Res<WallSprite>,
     prototypes: Res<PrototypesHandle>,
     asset_server: Res<AssetServer>,
 ) {
     if let LoadState::Loaded =
-        asset_server.get_group_load_state([unit.0.id, wall.0.id, prototypes.0.id])
+        asset_server.get_group_load_state([unit.0.id(), wall.0.id(), prototypes.0.id()])
     {
-        state.set(AppState::Playing).unwrap();
+        next_state.set(AppState::Playing);
     }
 }
 
 fn main() {
-    let height = 900.0;
-    let mut app = App::new();
-    app.insert_resource(ClearColor(CLEAR_COLOR))
-        .insert_resource(WindowDescriptor {
-            title: "Scriplets".to_string(),
-            present_mode: PresentMode::Fifo,
-            height,
-            width: height * RESOLUTION,
-            resizable: false,
+    App::new()
+        .insert_resource(ClearColor(CLEAR_COLOR))
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Scriplets".to_string(),
+                present_mode: PresentMode::Fifo,
+                resolution: WindowResolution::new(WINDOW_HEIGHT * ASPECT_RATIO, WINDOW_HEIGHT),
+                resizable: false,
+                ..default()
+            }),
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_plugin(RapierDebugRenderPlugin::default()) // Reminder: disable when building debug
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
-        .add_state(AppState::Loading)
+        .add_state::<AppState>()
         .insert_resource(GameClock(Stopwatch::default()))
-        .add_system_set(SystemSet::on_enter(AppState::Loading).with_system(load_assets))
-        .add_system_set(SystemSet::on_update(AppState::Loading).with_system(check_load_assets))
-        .add_system_set(
-            SystemSet::on_enter(AppState::Playing)
-                .with_system(spawn_walls)
-                .with_system(spawn_unit)
-                .with_system(spawn_camera),
-        )
-        .add_system_set(
-            SystemSet::on_update(AppState::Playing)
-                .with_system(print_units_positions)
-                .with_system(game_clock_tick)
-                .with_system(handle_movement)
-                .with_system(move_and_zoom_camera),
-        )
-        .add_system_to_stage(CoreStage::First, tick_units_clocks)
-        .add_system_to_stage(CoreStage::PreUpdate, unit_tick)
+        .add_system(load_assets.in_schedule(OnEnter(AppState::Loading)))
+        .add_system(check_load_assets.in_set(OnUpdate(AppState::Loading)))
+        .add_system(spawn_walls.in_schedule(OnEnter(AppState::Playing)))
+        .add_system(spawn_unit.in_schedule(OnEnter(AppState::Playing)))
+        .add_system(spawn_camera.in_schedule(OnEnter(AppState::Playing)))
+        .add_system(print_units_positions.in_set(OnUpdate(AppState::Playing)))
+        .add_system(game_clock_tick.in_set(OnUpdate(AppState::Playing)))
+        .add_system(handle_movement.in_set(OnUpdate(AppState::Playing)))
+        .add_system(move_and_zoom_camera.in_set(OnUpdate(AppState::Playing)))
+        .add_system(tick_units_clocks.in_base_set(CoreSet::First))
+        .add_system(unit_tick.in_base_set(CoreSet::PreUpdate))
         .run()
 }
