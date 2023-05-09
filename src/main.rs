@@ -380,7 +380,10 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugin(RapierDebugRenderPlugin::default()) // Reminder: disable when building debug
+        .add_plugin(RapierDebugRenderPlugin {
+            enabled: cfg!(debug_assertions),
+            ..default()
+        }) // Reminder: disable when building debug
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
         .add_plugin(ScriptingPlugin)
         .add_script_host_to_base_set::<LuaScriptHost<mlua::Variadic<LuaArg>>, _>(
@@ -397,7 +400,11 @@ fn main() {
         .add_system(spawn_camera.in_schedule(OnEnter(AppState::Playing)))
         .add_system(tick_units_clocks.before(unit_tick))
         .add_system(unit_tick.before(CoreSet::Update))
-        .add_system(print_units_positions.in_set(OnUpdate(AppState::Playing)))
+        .add_system(
+            print_units_positions
+                .in_set(OnUpdate(AppState::Playing))
+                .run_if(|| cfg!(debug_assertions)),
+        )
         .add_system(game_clock_tick.in_set(OnUpdate(AppState::Playing)))
         .add_system(handle_movement.in_set(OnUpdate(AppState::Playing)))
         .add_system(move_and_zoom_camera.in_set(OnUpdate(AppState::Playing)))
