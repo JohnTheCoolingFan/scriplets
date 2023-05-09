@@ -6,6 +6,7 @@ use bevy::{
     time::Stopwatch,
     window::{PresentMode, WindowResolution},
 };
+use bevy_mod_scripting::prelude::*;
 use bevy_rapier2d::prelude::*;
 use prototypes::{ComponentPrototype, Movement, MovementType, Prototypes, PrototypesLoader};
 
@@ -61,6 +62,15 @@ pub struct UnitSprite(Handle<Image>);
 pub struct WallSprite(Handle<Image>);
 #[derive(Resource)]
 pub struct PrototypesHandle(Handle<Prototypes>);
+
+#[derive(Debug, Clone)]
+pub struct LuaArg(usize);
+
+impl<'lua> ToLua<'lua> for LuaArg {
+    fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
+        self.0.to_lua(lua)
+    }
+}
 
 fn spawn_camera(mut commands: Commands) {
     let mut camera = Camera2dBundle::default();
@@ -372,6 +382,10 @@ fn main() {
         }))
         .add_plugin(RapierDebugRenderPlugin::default()) // Reminder: disable when building debug
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
+        .add_plugin(ScriptingPlugin)
+        .add_script_host_to_base_set::<LuaScriptHost<mlua::Variadic<LuaArg>>, _>(
+            CoreSet::PostUpdate,
+        )
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
         .add_state::<AppState>()
