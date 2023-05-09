@@ -4,6 +4,4 @@ Scriplets is an RTS game about programming. You program units to do certain task
 
 ## Building
 
-To build playable binaries, use `cargo build --no-default-features --release`. If you don't disable default features, a debug version will be compiled instead.
-
-*Later these instructions will be replaced by a separate build instructions for a server and a client, this will happen after the game is split into these parts*
+To build playable binaries, use `cargo build --release`. Regular build is in debug mode, which has some extra stuff enabled for easier development process.
