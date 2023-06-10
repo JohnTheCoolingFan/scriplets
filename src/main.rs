@@ -10,13 +10,16 @@ use bevy_mod_scripting::prelude::*;
 use bevy_rapier2d::prelude::*;
 use prototypes::{ComponentPrototype, Movement, MovementType, Prototypes, PrototypesLoader};
 
-use std::f32::consts::PI;
+use std::{
+    f32::consts::PI,
+    sync::{Arc, Mutex},
+};
 
 mod data_value;
 mod program;
 mod prototypes;
 
-use program::{UnitHandle, UnitProgram};
+use program::UnitHandle;
 
 const CLEAR_COLOR: Color = Color::rgb(0.1, 0.1, 0.1);
 const ASPECT_RATIO: f32 = 16.0 / 9.0;
@@ -64,11 +67,65 @@ pub struct WallSprite(Handle<Image>);
 pub struct PrototypesHandle(Handle<Prototypes>);
 
 #[derive(Debug, Clone)]
-pub struct LuaArg(usize);
+pub struct UnitLuaAPIProvider;
 
-impl<'lua> ToLua<'lua> for LuaArg {
-    fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
-        self.0.to_lua(lua)
+impl APIProvider for UnitLuaAPIProvider {
+    type APITarget = Mutex<Lua>;
+    type ScriptContext = Mutex<Lua>;
+    type DocTarget = LuaDocFragment;
+
+    fn attach_api(&mut self, api: &mut Self::APITarget) -> Result<(), ScriptError> {
+        let lua = api.get_mut().map_err(ScriptError::new_other)?;
+        let globals = lua.globals();
+        globals
+            .set(
+                "print",
+                lua.create_function(|_, s: String| Ok(println!("{}", s)))
+                    .map_err(ScriptError::new_other)?,
+            )
+            .map_err(ScriptError::new_other)?;
+        Ok(())
+    }
+
+    fn setup_script_runtime(
+        &mut self,
+        world_ptr: bevy_mod_scripting::core::world::WorldPointer,
+        script_data: &ScriptData,
+        ctx: &mut Self::ScriptContext,
+    ) -> Result<(), ScriptError> {
+        let lua = ctx.get_mut().map_err(ScriptError::new_other)?;
+        let globals = lua.globals();
+        let entity = script_data.entity;
+        let world_ptr_arc = Arc::new(world_ptr);
+        let world_ptr = world_ptr_arc.clone();
+        let move_fn = lua
+            .create_function(move |_, args: (f32, f32)| {
+                let mut world = world_ptr.write();
+                let mut entity_mut = world.entity_mut(entity);
+                if let Some(mut movement) = entity_mut.get_mut::<Movement>() {
+                    movement.input_move = Vec2::from(args);
+                }
+                Ok(())
+            })
+            .map_err(ScriptError::new_other)?;
+        let world_ptr = world_ptr_arc.clone();
+        let rotate_fn = lua
+            .create_function(move |_, rot: f32| {
+                let mut world = world_ptr.write();
+                let mut entity_mut = world.entity_mut(entity);
+                if let Some(mut movement) = entity_mut.get_mut::<Movement>() {
+                    movement.input_rotation = rot;
+                }
+                Ok(())
+            })
+            .map_err(ScriptError::new_other)?;
+        globals
+            .set("unit_move", move_fn)
+            .map_err(ScriptError::new_other)?;
+        globals
+            .set("unit_rotate", rotate_fn)
+            .map_err(ScriptError::new_other)?;
+        Ok(())
     }
 }
 
@@ -121,23 +178,28 @@ fn spawn_unit(
     unit_sprite: Res<UnitSprite>,
     prototypes_handle: Res<PrototypesHandle>,
     prototypes_assets: Res<Assets<Prototypes>>,
+    mut lua_files: ResMut<Assets<LuaFile>>,
 ) {
     let component_prototypes = prototypes_assets.get(&prototypes_handle.0).unwrap();
 
-    let unit_program = UnitProgram::new_lua_with_program(
-        r#"
+    let unit_program_file = lua_files.add(LuaFile {
+        bytes: r#"
         function on_tick(handle)
-            handle:move(1, 1)
+            unit_move(1, 1)
         end
-    "#
-        .as_bytes(),
-    );
+        "#
+        .as_bytes()
+        .into(),
+    });
+    let unit_script = Script::<LuaFile>::new("unit_default".into(), unit_program_file);
     let movement = Movement::component_from_pt(component_prototypes, "default").unwrap();
     commands.spawn((
         Unit,
         UnitClock(Stopwatch::default()),
         movement,
-        unit_program,
+        ScriptCollection {
+            scripts: vec![unit_script],
+        },
         Collider::cuboid(0.499, 0.499),
         RigidBody::KinematicPositionBased,
         SpriteBundle {
@@ -302,27 +364,15 @@ fn handle_movement(
     }
 }
 
-fn unit_tick(
-    mut units: Query<
-        (
-            &mut UnitProgram,
-            Option<&mut Movement>,
-            &mut UnitClock,
-            &Transform,
-        ),
-        With<Unit>,
-    >,
-    game_clock: Res<GameClock>,
-) {
-    for (mut unit_program, mut movement, clock, transform) in units.iter_mut() {
-        let handle = UnitHandle {
-            movement: movement.as_deref_mut(),
-            transform,
-            clock: &clock,
-            game_clock: &game_clock,
-        };
-        unit_program.tick(handle)
-    }
+fn unit_tick(mut ew: PriorityEventWriter<LuaEvent<mlua::Variadic<usize>>>) {
+    ew.send(
+        LuaEvent {
+            hook_name: "on_tick".to_string(),
+            args: mlua::Variadic::from_iter([0]),
+            recipients: Recipients::All,
+        },
+        0,
+    )
 }
 
 fn tick_units_clocks(mut units: Query<&mut UnitClock, With<Unit>>, time: Res<Time>) {
@@ -386,9 +436,7 @@ fn main() {
         }) // Reminder: disable when building debug
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(32.0))
         .add_plugin(ScriptingPlugin)
-        .add_script_host_to_base_set::<LuaScriptHost<mlua::Variadic<LuaArg>>, _>(
-            CoreSet::PostUpdate,
-        )
+        .add_script_host_to_base_set::<LuaScriptHost<mlua::Variadic<usize>>, _>(CoreSet::PostUpdate)
         .add_asset::<Prototypes>()
         .init_asset_loader::<PrototypesLoader>()
         .add_state::<AppState>()
@@ -399,7 +447,11 @@ fn main() {
         .add_system(spawn_unit.in_schedule(OnEnter(AppState::Playing)))
         .add_system(spawn_camera.in_schedule(OnEnter(AppState::Playing)))
         .add_system(tick_units_clocks.before(unit_tick))
-        .add_system(unit_tick.before(CoreSet::Update))
+        .add_system(unit_tick.in_base_set(CoreSet::Update))
+        .add_script_handler_to_base_set::<LuaScriptHost<mlua::Variadic<usize>>, _, 0, 0>(
+            CoreSet::PostUpdate,
+        )
+        .add_api_provider::<LuaScriptHost<mlua::Variadic<usize>>>(Box::new(UnitLuaAPIProvider))
         .add_system(
             print_units_positions
                 .in_set(OnUpdate(AppState::Playing))

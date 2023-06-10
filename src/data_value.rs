@@ -1,7 +1,7 @@
 //! Enums for representing data stored in data storages. Takes inspiration from mlua's Value.
 
 use bevy::utils::FloatOrd;
-use mlua::prelude::*;
+use bevy_mod_scripting::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
